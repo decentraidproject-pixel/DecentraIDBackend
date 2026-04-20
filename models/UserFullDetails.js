@@ -24,7 +24,16 @@ const userSchema = new mongoose.Schema({
   reputationScore: {
     type: Number,
     default: 50
-  }
+  },
+
+  aiReputationScore: {
+  type: Number,
+  default: 0
+},
+finalScore: {
+  type: Number,
+  default: 0
+}
 
 });
 

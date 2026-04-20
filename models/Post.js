@@ -45,7 +45,19 @@ const postSchema = new mongoose.Schema({
   rejectedBy: { type: [String], default: [] },
 
  
-  userScore: { type: Number, default: 50 }
+  userScore: { type: Number, default: 50 },
+  aiScoreGiven: {
+  type: Boolean,
+  default: false
+},
+aiReputationScore: {
+  type: Number,
+  default: 0
+},
+finalScore: {
+  type: Number,
+  default: 0
+}
 
 }, { timestamps: true });
 

@@ -9,11 +9,46 @@ const upload = multer({ dest: "uploads/" });
 const InstitutionFull = require("../models/InstitutionFull");
 const InstitutionBasic = require("../models/InstitutionBasic");
 const ApprovedInstitution = require("../models/ApprovedInstitution");
+
+const VerifierFullDetails = require("../models/verifierDetails.jsx");
+const VerifierBasic = require("../models/VerifierBasicDetails.jsx");
+const VerifierApprovedInstitution = require("../models/VerifierApprovedList.jsx");
+
 const UserRegistration = require("../models/UserRegistration");
 const adminAuth = require("../middleware/adminAuth");
+const Verify = require("../middleware/Verify.js")
 
-const Post = require("../models/Post"); // your Post model
+const Post = require("../models/Post"); 
 const verifyTokenMiddleware = require("../middleware/verifyToken");
+const verify=require("../middleware/Verify.js");
+const nodemailer = require("nodemailer");
+
+
+router.post("/contact", async (req, res) => {
+  const { name, email, message } = req.body;
+
+  try {
+    const transporter = nodemailer.createTransport({
+      service: "gmail",
+      auth: {
+        user: "poo@gmail.com",
+        pass: "YOUR_APP_PASSWORD"
+      }
+    });
+
+    await transporter.sendMail({
+      from: email,
+      to: "poo@gmail.com",
+      subject: `New Contact Message from ${name}`,
+      text: message
+    });
+
+    res.json({ message: "Email sent successfully" });
+
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
 
 
 router.post("/create", upload.single("file"), async (req, res) => {
@@ -196,6 +231,57 @@ router.post("/verifierlogin", async (req, res) => {
     const { email, password } = req.body;
 
   
+    const institution = await VerifierFullDetails.findOne({ email });
+
+    if (!institution) {
+      return res.status(400).json({ message: "Invalid Email" });
+    }
+
+    
+    const isMatch = await bcrypt.compare(password, institution.password);
+    if (!isMatch) {
+      return res.status(400).json({ message: "Invalid Password" });
+    }
+
+    
+    if (institution.status !== "APPROVED") {
+      return res.status(403).json({
+        message: "Account not approved by admin"
+      });
+    }
+
+   
+    const token = jwt.sign(
+      {
+        id: institution._id,
+        verifierName: institution.officialName
+      },
+      process.env.JWT_SECRET1 || "mysecretkey123",
+      { expiresIn: "1d" }
+    );
+
+    
+    res.status(200).json({
+      message: "Login Successful",
+      token, 
+      name: institution.officialName,
+      institutionId: institution._id,
+      status: institution.status
+    });
+
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Server Error" });
+  }
+});
+
+
+
+router.post("/verifierlogin", async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+  
     const institution = await InstitutionFull.findOne({ email });
 
     if (!institution) {
@@ -239,6 +325,57 @@ router.post("/verifierlogin", async (req, res) => {
     res.status(500).json({ message: "Server Error" });
   }
 });
+
+
+router.post("/vlogin", async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+  
+    const institution = await VerifierFullDetails.findOne({ email });
+
+    if (!institution) {
+      return res.status(400).json({ message: "Invalid Email" });
+    }
+
+    
+    const isMatch = await bcrypt.compare(password, institution.password);
+    if (!isMatch) {
+      return res.status(400).json({ message: "Invalid Password" });
+    }
+
+    
+    if (institution.status !== "APPROVED") {
+      return res.status(403).json({
+        message: "Account not approved by admin"
+      });
+    }
+
+   
+    const token = jwt.sign(
+      {
+        id: institution._id,
+        verifierName: institution.officialName
+      },
+      process.env.JWT_SECRET1 || "mysecretkey123",
+      { expiresIn: "1d" }
+    );
+
+    
+    res.status(200).json({
+      message: "Login Successful",
+      token, 
+      name: institution.officialName,
+      institutionId: institution._id,
+      status: institution.status
+    });
+
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Server Error" });
+  }
+});
+
 
 
 
@@ -422,7 +559,149 @@ router.post("/register", async (req, res) => {
   }
 });
 
+
+
+router.post("/verifierRegister", async (req, res) => {
+  try {
+    const {
+      officialName,
+      organizationType,
+      yearOfEstablishment,
+      registrationNumber,
+      affiliatedBody,
+      officialEmail,
+      officialContact,
+      website,
+      address,
+      city,
+      state,
+      country,
+      postalCode,
+      authorizedPersonName,
+      designation,
+      authorizedEmail,
+      authorizedContact,
+      natureOfServices,
+      totalStaff,
+      totalStudents,
+      specialization,
+      workingHours,
+      govtCertificateNo,
+      gstNumber,
+      panNumber,
+      accreditationDetails,
+      password,
+      confirmPassword
+    } = req.body;
+
+    if (!password || !confirmPassword)
+      return res.status(400).json({ message: "Password fields required" });
+    if (password !== confirmPassword)
+      return res.status(400).json({ message: "Passwords do not match" });
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    const fullData = await VerifierFullDetails.create({
+      officialName,
+      organizationType,
+      yearOfEstablishment,
+      registrationNumber,
+      affiliatedBody,
+      email: officialEmail,
+      contactNumber: officialContact,
+      website,
+      address,
+      city,
+      state,
+      country,
+      postalCode,
+      authorizedPersonName,
+      designation,
+      authorizedEmail,
+      authorizedContact,
+      services: natureOfServices,
+      totalStaff,
+      totalMembers: totalStudents,
+      specialization,
+      workingHours,
+      govCertificateNumber: govtCertificateNo,
+      gstNumber,
+      panNumber,
+      accreditation: accreditationDetails,
+      password: hashedPassword,
+      status: "PENDING"
+    });
+
+    await VerifierBasic.create({
+      officialName,
+      organizationType,
+      fullInstitutionId: fullData._id
+    });
+
+    
+    const token = jwt.sign(
+      { id: fullData._id, verifierName: fullData.officialName },
+      process.env.JWT_SECRET1,
+      { expiresIn: "1d" }
+    );
+
+    res.status(201).json({
+      message: "Registration Successful",
+      token,
+      name: fullData.officialName,
+      institutionId: fullData._id,
+      status: fullData.status
+    });
+
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Server Error", error: error.message });
+  }
+});
+
+
+
+
+
+
 router.post("/login", async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    const institution = await InstitutionFull.findOne({ email });
+
+    if (!institution) {
+      return res.status(400).json({ message: "Invalid Email" });
+    }
+
+    const isMatch = await bcrypt.compare(password, institution.password);
+
+    if (!isMatch) {
+      return res.status(400).json({ message: "Invalid Password" });
+    }
+
+    if (institution.status !== "APPROVED") {
+      return res.status(403).json({
+        message: "Account not approved by admin"
+      });
+    }
+
+    res.status(200).json({
+      message: "Login Successful",
+      institutionId: institution._id,
+      name: institution.officialName,
+      status: institution.status
+    });
+
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({
+      message: "Server Error"
+    });
+  }
+});
+
+router.post("/vlogin", async (req, res) => {
   try {
     const { email, password } = req.body;
 
@@ -472,7 +751,7 @@ router.get("/admin/type/:type", adminAuth, async (req, res) => {
     const data = institutions.map(inst => ({
       _id: inst._id,
       officialName: inst.officialName,
-      fullInstitutionId: inst.fullInstitutionId?.toString() // ensure it exists
+      fullInstitutionId: inst.fullInstitutionId?.toString() 
     }));
 
     res.json(data);
@@ -482,12 +761,44 @@ router.get("/admin/type/:type", adminAuth, async (req, res) => {
   }
 });
 
+router.get("/admin/verifytype/:type", adminAuth, async (req, res) => {
+  try {
+    const type = req.params.type;
+    const institutions = await VerifierBasic.find({ organizationType: type })
+      .select("officialName fullInstitutionId")
+      .lean(); 
+   
+    const data = institutions.map(inst => ({
+      _id: inst._id,
+      officialName: inst.officialName,
+      fullInstitutionId: inst.fullInstitutionId?.toString() 
+    }));
+
+    res.json(data);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: error.message });
+  }
+});
 
 router.get("/admin/fulltype/:type", adminAuth, async (req, res) => {
   try {
     const type = req.params.type;
     
     const institutions = await InstitutionFull.find({ organizationType: type }).lean();
+    res.json(institutions); 
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+
+router.get("/admin/verifierfulltype/:type", adminAuth, async (req, res) => {
+  try {
+    const type = req.params.type;
+    
+    const institutions = await VerifierFullDetails.find({ organizationType: type }).lean();
     res.json(institutions); 
   } catch (error) {
     console.error(error);
@@ -557,6 +868,42 @@ router.get("/admin/details/:id", adminAuth, async (req, res) => {
 });
 
 
+router.get("/admin/vdetails/:id",adminAuth, async (req, res) => {
+  try {
+    const id = req.params.id;
+
+    let institution = null;
+
+    
+    institution = await VerifierFullDetails.findById(id).lean();
+
+    
+    if (!institution) {
+      const basic = await VerifierBasic.findById(id).lean();
+
+      if (basic && basic.fullInstitutionId) {
+        institution = await InstitutionFull.findById(
+          basic.fullInstitutionId
+        ).lean();
+      }
+    }
+
+    
+    if (!institution) {
+      return res.status(404).json({ message: "Institution not found" });
+    }
+
+    
+    res.json(institution);
+
+  } catch (error) {
+    console.error("DETAIL ERROR:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+
+
 router.post("/admin/approve/:id", adminAuth, async (req, res) => {
   try {
     const institution = await InstitutionFull.findById(req.params.id);
@@ -583,6 +930,32 @@ router.post("/admin/approve/:id", adminAuth, async (req, res) => {
 });
 
 
+router.post("/admin/vapprove/:id",adminAuth, async (req, res) => {
+  try {
+    const institution = await VerifierFullDetails.findById(req.params.id);
+    if (!institution) {
+      return res.status(404).json({ message: "Institution not found" });
+    }
+
+    institution.status = "APPROVED";
+    await institution.save();
+
+    const already = await VerifierApprovedInstitution.findOne({ fullInstitutionId: institution._id });
+    if (!already) {
+      await VerifierApprovedInstitution.create({
+        fullInstitutionId: institution._id,
+        officialName: institution.officialName,
+        organizationType: institution.organizationType
+      });
+    }
+
+    res.json({ message: "Institution Approved Successfully" });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+
 router.post("/admin/reject/:id", adminAuth, async (req, res) => {
   try {
     await InstitutionFull.findByIdAndUpdate(
@@ -595,6 +968,18 @@ router.post("/admin/reject/:id", adminAuth, async (req, res) => {
   }
 });
 
+
+router.post("/admin/vreject/:id",adminAuth, async (req, res) => {
+  try {
+    await VerifierFullDetails.findByIdAndUpdate(
+      req.params.id,
+      { status: "REJECTED" }
+    );
+    res.json({ message: "Institution Rejected" });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
 
 
 
